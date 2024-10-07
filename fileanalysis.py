@@ -1,9 +1,9 @@
+import zlib 
 import struct
 
 def main():
-    hexdump_file("code/common.dat", end = 0x300)
-    extract_data_from_idx("code/common.idx")
-    hexdump_file("saves/NEW HOPE.save", end = 0x300)
+    extract_data_from_dat("code/common.dat", "code/common.idx")
+    # hexdump_file("saves/NEW HOPE.save", end = 0x300)
 
 def hexdump_file(filepath, start = 0, end = 0, step = 48):
     with open(filepath, 'rb') as f:
@@ -19,18 +19,30 @@ def hexdump_file(filepath, start = 0, end = 0, step = 48):
         print(f"{offset:08x}  {hex_values:<96} | {ascii_values} |")
         offset += step
 
-def extract_data_from_idx(filepath):
-    with open(filepath, 'rb') as f:
-        data = f.read()
-    offset = 0
-    
-    offset += 3 # 00 02 01 "Signature"
-    filecount, = struct.unpack('<Q', data[offset:offset+8])
-    offset += 8
+def extract_data_from_dat(datfilepath, idxfilepath):
+    with open(datfilepath, 'rb') as f:
+        datdata = f.read()
+    with open(idxfilepath, 'rb') as f:
+        idxdata = f.read()
+
+    idxoffset = 0
+    idxoffset += 3 # 00 02 01 "Signature"
+    filecount, = struct.unpack('<Q', idxdata[idxoffset:idxoffset+8])
+    idxoffset += 8
     for i in range(filecount) :
-        s1, s2, s3, s4, s5 = struct.unpack('<IQQQ?', data[offset:offset+29])
-        print(f"{i}: {s1} {s2} {s3} {s4} {s5}")
-        offset += 29
+        hash, datsize, decompressedsize, datoffset, s5 = struct.unpack('<IQQQ?', idxdata[idxoffset:idxoffset+29])
+        dat = datdata[datoffset:datoffset+datsize]
+        decompressor = zlib.decompressobj(-zlib.MAX_WBITS)
+        decompressed_data = decompressor.decompress(dat[10:])
+        decompressed_data += decompressor.flush()
+        try:
+            dat = decompressed_data[0:decompressedsize].decode('utf-8')
+            print(f"{hash}: {dat}")
+            with open(f"extracted/{hash}.lua", 'w') as f:
+                f.write(dat)
+        except:
+            pass # textures, sounds, etc
+        idxoffset += 29
 
 if __name__ == "__main__" :
     main()
